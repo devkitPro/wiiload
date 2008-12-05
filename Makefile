@@ -27,6 +27,7 @@ UNAME := $(shell uname -s)
 
 ifneq (,$(findstring MINGW,$(UNAME)))
 	EXEEXT		:= .exe
+	PLATFORM_LIBS	:=	-lws2_32
 endif
 
 ifneq (,$(findstring Linux,$(shell uname -s)))
@@ -42,7 +43,7 @@ endif
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=
+LIBS	:=	$(PLATFORM_LIBS)
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
