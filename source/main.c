@@ -1,5 +1,5 @@
 /*
- *	Copyright (C) 2008 dhewg, #wiidev efnet
+ *	Copyright (C) 2008 dhewg
  *
  *	this file is part of geckoloader
  *	http://wiibrew.org/index.php?title=Geckoloader
@@ -37,10 +37,12 @@
 #include <winsock2.h>
 #endif
 
+#include <zlib.h>
+
 #include "gecko.h"
 
 #define WIILOAD_VERSION_MAYOR 0
-#define WIILOAD_VERSION_MINOR 4
+#define WIILOAD_VERSION_MINOR 5
 
 #define LD_TCP_PORT 4299
 
@@ -75,16 +77,8 @@ static const char *desc_gecko = "COM4";
 
 static const char *envvar = "WIILOAD";
 
-static void gecko_wait_for_ack () {
-	u8 ack;
-	if (gecko_read (&ack, 1))
-		fprintf (stderr, "\nerror receiving the ack\n");
-	else if (ack != 0xaa)
-		fprintf (stderr, "\nunknown ack (0x%02x)\n", ack);
-}
-
-static bool send_gecko (const char *dev, const u8 *buf, const u32 len,
-						const char *args, const u16 args_len) {
+static bool send_gecko (const char *dev, const u8 *buf, u32 len, u32 len_un,
+						const char *args, u16 args_len) {
 	u8 b[4];
 	u32 left, block;
 	const u8 *p;
@@ -118,12 +112,12 @@ static bool send_gecko (const char *dev, const u8 *buf, const u32 len,
 		return false;
 	}
 
+	printf ("sending file size (%u bytes)\n", len);
+
 	b[0] = (len >> 24) & 0xff;
 	b[1] = (len >> 16) & 0xff;
 	b[2] = (len >> 8) & 0xff;
 	b[3] = len & 0xff;
-
-	printf ("sending file size (%u bytes)\n", len);
 
 	if (gecko_write (b, 4)) {
 		gecko_close ();
@@ -131,8 +125,16 @@ static bool send_gecko (const char *dev, const u8 *buf, const u32 len,
 		return false;
 	}
 
-	printf ("awaiting upload ack\n");
-	gecko_wait_for_ack ();
+	b[0] = (len_un >> 24) & 0xff;
+	b[1] = (len_un >> 16) & 0xff;
+	b[2] = (len_un >> 8) & 0xff;
+	b[3] = len_un & 0xff;
+
+	if (gecko_write (b, 4)) {
+		gecko_close ();
+		fprintf (stderr, "error sending data\n");
+		return false;
+	}
 
 	printf ("sending data");
 	fflush (stdout);
@@ -154,11 +156,8 @@ static bool send_gecko (const char *dev, const u8 *buf, const u32 len,
 		printf (".");
 		fflush (stdout);
 
-		if (left > 0)
-			gecko_wait_for_ack ();
-		else
-			printf ("\n");
 	}
+	printf ("\n");
 
 	if (args_len) {
 		printf ("sending arguments (%u bytes)\n", args_len);
@@ -174,7 +173,7 @@ static bool send_gecko (const char *dev, const u8 *buf, const u32 len,
 	return true;
 }
 
-static bool tcp_write (int s, const u8 *buf, const u32 len) {
+static bool tcp_write (int s, const u8 *buf, u32 len) {
 	s32 left, block;
 	const u8 *p;
 
@@ -195,8 +194,8 @@ static bool tcp_write (int s, const u8 *buf, const u32 len) {
 	return true;
 }
 
-static bool send_tcp (const char *host, const u8 *buf, const u32 len,
-						const char *args, const u16 args_len) {
+static bool send_tcp (const char *host, const u8 *buf, u32 len, u32 len_un,
+						const char *args, u16 args_len) {
 	struct sockaddr_in sa;
 	struct hostent *he;
 	int s, bc;
@@ -206,7 +205,7 @@ static bool send_tcp (const char *host, const u8 *buf, const u32 len,
 
 #ifdef __WIN32__
 	WSADATA wsa_data;
-	if (WSAStartup (0x101, &wsa_data)) {
+	if (WSAStartup (MAKEWORD(2,2), &wsa_data)) {
 		printf ("WSAStartup failed\n");
 		return false;
 	}
@@ -278,12 +277,22 @@ static bool send_tcp (const char *host, const u8 *buf, const u32 len,
 		return false;
 	}
 
+	printf ("sending file size (%u bytes)\n", len);
+
 	b[0] = (len >> 24) & 0xff;
 	b[1] = (len >> 16) & 0xff;
 	b[2] = (len >> 8) & 0xff;
 	b[3] = len & 0xff;
 
-	printf ("sending file size (%u bytes)\n", (u32) len);
+	if (!tcp_write (s, b, 4)) {
+		close (s);
+		return false;
+	}
+
+	b[0] = (len_un >> 24) & 0xff;
+	b[1] = (len_un >> 16) & 0xff;
+	b[2] = (len_un >> 8) & 0xff;
+	b[3] = len_un & 0xff;
 
 	if (!tcp_write (s, b, 4)) {
 		close (s);
@@ -330,6 +339,7 @@ static bool send_tcp (const char *host, const u8 *buf, const u32 len,
 #ifndef __WIN32__
 	close (s);
 #else
+	shutdown (s, SD_SEND);
 	closesocket (s);
 	WSACleanup ();
 #endif
@@ -360,8 +370,11 @@ int main (int argc, char **argv) {
 	int fd;
 	struct stat st;
 	char *ev;
-	u8 *buf;
+	bool compress = true;
+	u8 *buf, *bufz;
 	off_t fsize;
+	uLongf bufzlen = 0;
+	u32 len, len_un;
 
 	int i, c;
 	char args[MAX_ARGS_LEN];
@@ -395,7 +408,7 @@ int main (int argc, char **argv) {
 
 	fsize = st.st_size;
 
-	if (fsize < 1 || fsize > 20 * 1024 * 1024) {
+	if (fsize < 512 || fsize > 20 * 1024 * 1024) {
 		close (fd);
 		fprintf (stderr, "error: invalid file size\n");
 		exit (EXIT_FAILURE);
@@ -415,6 +428,45 @@ int main (int argc, char **argv) {
 		exit (EXIT_FAILURE);
 	}
 	close (fd);
+
+	len = fsize;
+	len_un = 0;
+
+	if (!memcmp(buf, "PK\x03\x04", 4))
+		compress = false;
+
+	if (compress) {
+		bufzlen = (uLongf) ((float) fsize * 1.02);
+
+		bufz = malloc (bufzlen);
+		if (!bufz) {
+			fprintf (stderr, "out of memory\n");
+			exit (EXIT_FAILURE);
+		}
+
+		printf("compressing %u bytes...", (u32) fsize);
+		fflush(stdout);
+
+		res = compress2 (bufz, &bufzlen, buf, fsize, 6);
+		if (res != Z_OK) {
+			free(buf);
+			free(bufz);
+			fprintf (stderr, "error compressing data: %d\n", res);
+			exit (EXIT_FAILURE);
+		}
+
+		if (bufzlen < (u32) fsize) {
+			printf(" %.2f%%\n", 100.0f * (float) bufzlen / (float) fsize);
+
+			len = bufzlen;
+			len_un = fsize;
+			free(buf);
+			buf = bufz;
+		} else {
+			printf(" compressed size gained size, discarding\n");
+			free(bufz);
+		}
+	}
 
 	args_len = 0;
 
@@ -453,12 +505,12 @@ int main (int argc, char **argv) {
 		if (stat (ev, &st))
 			usage (*argv);
 
-		res = send_gecko (ev, buf, fsize, args, args_len);
+		res = send_gecko (ev, buf, len, len_un, args, args_len);
 	} else {
 		if (strlen (ev) < 5)
 			usage (*argv);
 
-		res = send_tcp (&ev[4], buf, fsize, args, args_len);
+		res = send_tcp (&ev[4], buf, len, len_un, args, args_len);
 	}
 
 	if (res)

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008 dhewg, #wiidev efnet
+ *  Copyright (C) 2008 dhewg
  *
  *  this file is part of wiifuse
  *  http://wiibrew.org/index.php?title=Wiifuse
