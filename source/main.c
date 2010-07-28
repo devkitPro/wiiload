@@ -41,7 +41,7 @@
 
 #include "gecko.h"
 
-#define WIILOAD_VERSION_MAYOR 0
+#define WIILOAD_VERSION_MAJOR 0
 #define WIILOAD_VERSION_MINOR 5
 
 #define LD_TCP_PORT 4299
@@ -101,7 +101,7 @@ static bool send_gecko (const char *dev, const u8 *buf, u32 len, u32 len_un,
 		return false;
 	}
 
-	b[0] = WIILOAD_VERSION_MAYOR;
+	b[0] = WIILOAD_VERSION_MAJOR;
 	b[1] = WIILOAD_VERSION_MINOR; 
 	b[2] = (args_len >> 8) & 0xff;
 	b[3] = args_len & 0xff;
@@ -267,7 +267,7 @@ static bool send_tcp (const char *host, const u8 *buf, u32 len, u32 len_un,
 		return false;
 	}
 
-	b[0] = WIILOAD_VERSION_MAYOR;
+	b[0] = WIILOAD_VERSION_MAJOR;
 	b[1] = WIILOAD_VERSION_MINOR; 
 	b[2] = (args_len >> 8) & 0xff;
 	b[3] = args_len & 0xff;
@@ -385,7 +385,7 @@ int main (int argc, char **argv) {
 
 	printf ("wiiload v%u.%u\n"
 			"coded by dhewg\n\n",
-			WIILOAD_VERSION_MAYOR, WIILOAD_VERSION_MINOR);
+			WIILOAD_VERSION_MAJOR, WIILOAD_VERSION_MINOR);
 
 	if (argc < 2)
 		usage (*argv);
@@ -502,9 +502,10 @@ int main (int argc, char **argv) {
 	args_len = MAX_ARGS_LEN - args_left + 1;
 
 	if (strncmp (ev, "tcp:", 4)) {
+#ifndef __WIN32__	// stat call fails on some windows installations for com ports
 		if (stat (ev, &st))
 			usage (*argv);
-
+#endif
 		res = send_gecko (ev, buf, len, len_un, args, args_len);
 	} else {
 		if (strlen (ev) < 5)
