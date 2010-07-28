@@ -120,7 +120,9 @@ int gecko_open(const char *dev) {
 		return 1;
 	}
 #endif
+#ifdef USE_LIBFTDI
 done:
+#endif
 	gecko_flush();
 
 	return 0;
