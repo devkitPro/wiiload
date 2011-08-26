@@ -43,6 +43,7 @@
 
 #define WIILOAD_VERSION_MAJOR 0
 #define WIILOAD_VERSION_MINOR 5
+#define WIILOAD_VERSION_PATCH 1
 
 #define LD_TCP_PORT 4299
 
@@ -383,9 +384,9 @@ int main (int argc, char **argv) {
 
 	bool res;
 
-	printf ("wiiload v%u.%u\n"
+	printf ("wiiload v%u.%u.%u\n"
 			"coded by dhewg\n\n",
-			WIILOAD_VERSION_MAJOR, WIILOAD_VERSION_MINOR);
+			WIILOAD_VERSION_MAJOR, WIILOAD_VERSION_MINOR,WIILOAD_VERSION_PATCH);
 
 	if (argc < 2)
 		usage (*argv);
@@ -473,9 +474,11 @@ int main (int argc, char **argv) {
 	arg_pos = args;
 	args_left = MAX_ARGS_LEN;
 
-	c = snprintf (arg_pos, args_left, "%s", basename (argv[1]));
-	arg_pos += c + 1;
-	args_left -= c + 1;
+	if(argc==2) {
+		c = snprintf (arg_pos, args_left, "%s", basename (argv[1]));
+		arg_pos += c + 1;
+		args_left -= c + 1;
+	}
 
 	if (argc > 2) {
 		for (i = 2; i < argc; ++i) {
