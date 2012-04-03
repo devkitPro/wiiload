@@ -3,6 +3,6 @@ bin_PROGRAMS = wiiload
 
 wiiload_SOURCES	= source/main.c source/gecko.c source/gecko.h
 
-wiiload_LDADD	= -lz
+wiiload_LDADD	= ${WIN_SYS_LIBS}
 
 EXTRA_DIST = autogen.sh

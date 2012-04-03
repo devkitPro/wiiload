@@ -15,5 +15,11 @@ AC_PROG_CC
 AC_CHECK_LIB([z], [gzread], , 
     [AC_MSG_ERROR([zlib not found, see http://www.zlib.net])]) 
 
+case "$host" in
+	*-mingw32*)
+		WIN_SYS_LIBS=-lws2_32
+	;;
+esac
+AC_SUBST(WIN_SYS_LIBS)
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
