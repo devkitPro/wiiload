@@ -409,7 +409,7 @@ int main (int argc, char **argv) {
 
 	fsize = st.st_size;
 
-	if (fsize < 512 || fsize > 20 * 1024 * 1024) {
+	if (fsize < 512 || fsize > 100 * 1024 * 1024) {
 		close (fd);
 		fprintf (stderr, "error: invalid file size\n");
 		exit (EXIT_FAILURE);
