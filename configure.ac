@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([wiiload],[0.5.1],[https://github.com/devkitPro/wiiload/issues])
+AC_INIT([wiiload],[0.5.2],[https://github.com/devkitPro/wiiload/issues])
 AC_CONFIG_SRCDIR([source/main.c])
 
 AM_INIT_AUTOMAKE([subdir-objects])
